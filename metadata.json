@@ -1,0 +1,7 @@
+{
+  "name": "Copy of PREGÃO Marketplace X",
+  "description": "A comprehensive marketplace and ERP platform for Angolan businesses, featuring modules for sellers, buyers, delivery, POS, and a backoffice for administration.",
+  "requestFramePermissions": [
+    "camera"
+  ]
+}

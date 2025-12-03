@@ -1,0 +1,16 @@
+
+{
+  "short_name": "PRegão",
+  "name": "PREGÃO Marketplace",
+  "icons": [
+    {
+      "src": "/vite.svg",
+      "type": "image/svg+xml",
+      "sizes": "192x192 512x512"
+    }
+  ],
+  "start_url": ".",
+  "display": "standalone",
+  "theme_color": "#1a56db",
+  "background_color": "#ffffff"
+}

@@ -239,20 +239,20 @@ const ProductCard = ({ product }: ProductCardProps) => {
                <span className="text-xl font-bold text-gray-900">{product.price.toFixed(2)} Kz</span>
             </div>
             
-            <button
-                onClick={openModal}
-                className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none transition-colors"
-            >
-                <EyeIcon className="h-4 w-4 mr-2 text-gray-500" />
-                Ver Detalhes
-            </button>
-
             <button 
                 onClick={handleQuickBuy}
                 className="w-full flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
             >
                 <ShoppingCartIcon className="h-4 w-4 mr-2" />
                 Comprar Agora
+            </button>
+            
+            <button
+                onClick={openModal}
+                className="w-full flex justify-center items-center px-4 py-2 border border-gray-300 shadow-sm text-sm font-medium rounded-md text-gray-700 bg-white hover:bg-gray-50 focus:outline-none transition-colors"
+            >
+                <EyeIcon className="h-4 w-4 mr-2 text-gray-500" />
+                Ver Detalhes
             </button>
           </div>
         </div>

@@ -2,7 +2,7 @@
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Product, ProductPackage } from '@/types';
-import { ShoppingCartIcon, EyeIcon, XMarkIcon, MinusIcon, PlusIcon, ScaleIcon, ExclamationCircleIcon, BuildingOfficeIcon, MagnifyingGlassIcon, BoltIcon } from '@heroicons/react/24/outline';
+import { ShoppingCartIcon, EyeIcon, XMarkIcon, MinusIcon, PlusIcon, ScaleIcon, ExclamationCircleIcon, BuildingOfficeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import { mockWarehouses } from '@/mocks/data';
 
@@ -192,34 +192,43 @@ const ProductCard = ({ product }: ProductCardProps) => {
       closeModal();
   };
 
+  // Calculate global stock availability for the Buy Now button state
+  const totalStock = product.stockLevels.reduce((acc, s) => acc + s.quantity, 0);
+  const hasGlobalStock = !product.trackStock || totalStock > 0;
+
   // Função para compra rápida (botão na frente do cartão)
   const handleQuickBuy = (e: React.MouseEvent) => {
     e.stopPropagation();
     
+    // 1. Default Package (First one)
     const defaultPkg = product.packages[0];
-    // Calcula quantidade necessária baseada no mínimo de compra
-    const minPurchase = product.minPurchaseQuantity || 1;
-    // Exemplo: Min 12 UN. Embalagem CX (x6). Precisa de 2 CX.
-    const quickQty = Math.ceil(minPurchase / defaultPkg.factor);
+    
+    // 2. Minimum Quantity Calculation
+    const minPurchaseBase = product.minPurchaseQuantity || 1;
+    // Calculate required package count (e.g., if Min=12 and Pkg=6, we need 2 packages)
+    const quickQty = Math.ceil(minPurchaseBase / defaultPkg.factor);
     
     let whId = '';
 
     if (product.trackStock) {
-        // Encontra o armazém com maior stock disponível
+        // 3. Find warehouse with enough stock for the required amount
+        const requiredBaseQty = quickQty * defaultPkg.factor;
+        
         const bestStock = product.stockLevels
-            .filter(sl => sl.quantity >= (quickQty * defaultPkg.factor))
+            .filter(sl => sl.quantity >= requiredBaseQty)
             .sort((a, b) => b.quantity - a.quantity)[0];
         
         if (!bestStock) {
-            alert(`Stock insuficiente para compra rápida de ${product.name}.`);
+            alert(`Stock insuficiente para compra rápida de ${product.name}.\nNecessário: ${requiredBaseQty} ${product.baseUnit}\nDisponível Global: ${totalStock} ${product.baseUnit}`);
             return;
         }
         whId = bestStock.warehouseId;
     }
 
-    const totalPrice = (defaultPkg.price ?? (product.price * defaultPkg.factor)) * quickQty;
+    const price = defaultPkg.price ?? (product.price * defaultPkg.factor);
+    const totalPrice = price * quickQty;
     
-    alert(`Adicionado ao carrinho: ${quickQty}x ${defaultPkg.name} de ${product.name}.\nTotal: ${totalPrice.toFixed(2)} Kz\n(Armazém: ${mockWarehouses.find(w => w.id === whId)?.name || 'Geral'})`);
+    alert(`[Simulação] Adicionado ao carrinho:\n${quickQty}x ${defaultPkg.name} de ${product.name}\nTotal: ${totalPrice.toFixed(2)} Kz\n(Armazém: ${mockWarehouses.find(w => w.id === whId)?.name || 'Geral'})`);
     console.log(`[Quick Buy] Adicionado ${quickQty}x ${product.name} (${defaultPkg.name}) ao carrinho.`);
   };
 
@@ -229,6 +238,11 @@ const ProductCard = ({ product }: ProductCardProps) => {
         <div onClick={openModal} className="cursor-pointer group relative">
            <img src={product.imageUrl} alt={product.name} className="w-full h-48 object-cover" />
            <div className="absolute inset-0 bg-black bg-opacity-0 group-hover:bg-opacity-10 transition-opacity" />
+           {!hasGlobalStock && (
+             <div className="absolute top-2 right-2 bg-red-600 text-white text-xs font-bold px-2 py-1 rounded">
+               Esgotado
+             </div>
+           )}
         </div>
         <div className="p-4 flex flex-col flex-grow">
           <h3 onClick={openModal} className="text-lg font-semibold text-gray-800 truncate cursor-pointer hover:text-primary">{product.name}</h3>
@@ -241,7 +255,8 @@ const ProductCard = ({ product }: ProductCardProps) => {
             
             <button 
                 onClick={handleQuickBuy}
-                className="w-full flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors"
+                disabled={!hasGlobalStock}
+                className="w-full flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
                 <ShoppingCartIcon className="h-4 w-4 mr-2" />
                 Comprar Agora
@@ -553,92 +568,68 @@ const ProductCard = ({ product }: ProductCardProps) => {
                                     <ExclamationCircleIcon className="h-5 w-5 text-orange-400" aria-hidden="true" />
                                 </div>
                                 <div className="ml-3">
-                                    <h3 className="text-sm font-medium text-orange-800">Quantidade Mínima de Compra</h3>
+                                    <h3 className="text-sm font-medium text-orange-800">Quantidade Mínima</h3>
                                     <div className="mt-1 text-sm text-orange-700">
-                                        <p>Este produto requer uma compra mínima de <strong>{minQtyInput} {selectedPackage.name}(s)</strong>.</p>
+                                        <p>A venda mínima deste produto é de {minQtyInput} {selectedPackage.name}.</p>
                                     </div>
                                 </div>
                             </div>
                         </div>
-                    )}
+                     )}
 
-                    <div className="flex flex-col sm:flex-row justify-between items-center gap-4">
-                        {allowDecimals ? (
-                            <div className="flex items-center gap-3 w-full sm:w-auto bg-blue-50 p-3 rounded-lg border border-blue-100 shadow-sm">
-                                <div className="p-2 bg-blue-100 rounded-full text-blue-600">
-                                    <ScaleIcon className="h-5 w-5" />
-                                </div>
-                                <div className="flex flex-col">
-                                    <label htmlFor="weight-input" className="text-xs font-bold text-blue-800 uppercase tracking-wide mb-1">
-                                        Peso / Volume ({product.baseUnit})
-                                    </label>
-                                    <div className="flex items-center">
+                    <div className="flex justify-between items-center">
+                        <div className="flex items-center space-x-4">
+                            <label htmlFor="quantity" className="block text-sm font-medium text-gray-700">
+                                Quantidade:
+                            </label>
+                            <div className="flex items-center border border-gray-300 rounded-md">
+                                <button 
+                                    onClick={handleDecrement}
+                                    className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-l-md transition-colors"
+                                >
+                                    <MinusIcon className="h-4 w-4" />
+                                </button>
+                                {allowDecimals ? (
+                                    <div className="relative">
                                         <input
-                                            type="number"
-                                            id="weight-input"
-                                            step="0.1"
-                                            min={minQtyInput}
-                                            className="w-28 text-center border-gray-300 rounded-md py-1.5 text-sm font-semibold text-gray-900 focus:outline-none focus:ring-2 focus:ring-blue-500 focus:border-blue-500"
+                                            type="text"
+                                            inputMode="decimal"
+                                            id="quantity"
                                             value={quantity}
                                             onChange={handleQuantityChange}
+                                            className="w-20 text-center border-x-0 border-y-0 p-2 text-gray-900 focus:ring-0 sm:text-sm"
                                         />
+                                        <span className="absolute right-1 top-2 text-xs text-gray-400 pointer-events-none">
+                                            {product.baseUnit}
+                                        </span>
                                     </div>
-                                </div>
-                                <div className="h-10 w-px bg-blue-200 mx-2"></div>
-                                <div className="text-right pr-2">
-                                    <span className="text-xs text-blue-600 block font-medium">Total Estimado</span>
-                                    <span className="text-lg font-bold text-blue-900">{(displayPrice * getNumericQuantity()).toFixed(2)} Kz</span>
-                                </div>
-                            </div>
-                        ) : (
-                            <div className="flex items-center gap-3 w-full sm:w-auto">
-                                <label htmlFor="quantity" className="text-sm font-medium text-gray-700">Quantidade:</label>
-                                <div className="flex items-center border border-gray-300 rounded-md bg-white shadow-sm">
-                                    <button
-                                        type="button"
-                                        className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-l-md disabled:opacity-50 transition-colors"
-                                        onClick={handleDecrement}
-                                        disabled={getNumericQuantity() <= minQtyInput}
-                                    >
-                                        <MinusIcon className="h-4 w-4" />
-                                    </button>
+                                ) : (
                                     <input
                                         type="number"
                                         id="quantity"
-                                        className="w-16 text-center border-x border-gray-300 py-2 text-sm focus:outline-none focus:ring-0 font-medium"
+                                        min={minQtyInput}
                                         value={quantity}
                                         onChange={handleQuantityChange}
-                                        min={minQtyInput}
-                                        step="1"
+                                        className="w-16 text-center border-none p-2 text-gray-900 focus:ring-0 sm:text-sm"
                                     />
-                                    <button
-                                        type="button"
-                                        className="px-3 py-2 text-gray-600 hover:bg-gray-100 rounded-r-md transition-colors"
-                                        onClick={handleIncrement}
-                                    >
-                                        <PlusIcon className="h-4 w-4" />
-                                    </button>
-                                </div>
-                                <div className="text-sm text-gray-500 ml-2 font-medium">
-                                    Total: <span className="text-gray-900 font-bold">{(displayPrice * getNumericQuantity()).toFixed(2)} Kz</span>
-                                </div>
+                                )}
+                                <button 
+                                    onClick={handleIncrement}
+                                    className="p-2 text-gray-600 hover:text-gray-900 hover:bg-gray-100 rounded-r-md transition-colors"
+                                >
+                                    <PlusIcon className="h-4 w-4" />
+                                </button>
                             </div>
-                        )}
-
-                        <div className="flex gap-3 w-full sm:w-auto justify-end">
-                            <button
-                            type="button"
-                            className="inline-flex justify-center rounded-md border border-gray-300 bg-white px-4 py-2 text-sm font-medium text-gray-700 hover:bg-gray-50 focus:outline-none focus-visible:ring-2 focus-visible:ring-primary focus-visible:ring-offset-2 transition-colors"
-                            onClick={closeModal}
-                            >
-                            Fechar
-                            </button>
+                        </div>
+                        
+                        <div className="flex space-x-3">
                             <button
                                 type="button"
-                                className="inline-flex justify-center rounded-md border border-transparent bg-primary px-4 py-2 text-sm font-medium text-white hover:bg-blue-700 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors shadow-sm disabled:opacity-50 disabled:cursor-not-allowed"
+                                className="inline-flex justify-center rounded-md border border-transparent bg-blue-100 px-4 py-2 text-sm font-medium text-blue-900 hover:bg-blue-200 focus:outline-none focus-visible:ring-2 focus-visible:ring-blue-500 focus-visible:ring-offset-2 transition-colors disabled:bg-gray-200 disabled:text-gray-500 disabled:cursor-not-allowed"
                                 onClick={handleAddToCart}
-                                disabled={!!error || quantity === '' || getNumericQuantity() === 0}
+                                disabled={!!error || (product.trackStock && !selectedWarehouseId)}
                             >
+                                <ShoppingCartIcon className="h-5 w-5 mr-2" />
                                 Adicionar ao Carrinho
                             </button>
                         </div>

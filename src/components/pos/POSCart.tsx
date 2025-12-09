@@ -1,7 +1,7 @@
 
 import React, { useState, useEffect } from 'react';
-import { Product, CartItem, WarehouseType, ProductPackage } from '@/types';
-import { PlusIcon, MinusIcon, TrashIcon, ExclamationTriangleIcon, ArrowsRightLeftIcon, TableCellsIcon } from '@heroicons/react/24/solid';
+import { Product, CartItem, ProductPackage, WarehouseType } from '@/types';
+import { PlusIcon, MinusIcon, TrashIcon, ExclamationTriangleIcon, ArrowsRightLeftIcon, TableCellsIcon, ExclamationCircleIcon } from '@heroicons/react/24/solid';
 import { MagnifyingGlassIcon } from '@heroicons/react/24/outline';
 import { mockProducts, mockWarehouses } from '@/mocks/data';
 
@@ -21,7 +21,70 @@ interface MergeConflict {
   selectedPackage: ProductPackage;
   existingItem: CartItem;
   alternativeWarehouseId: string;
+  quantityToAdd: number;
 }
+
+// Sub-component to handle decimal inputs correctly
+const QuantityInput = ({ 
+    value, 
+    onChange, 
+    min, 
+    step, 
+    className,
+    disabled
+}: { 
+    value: number, 
+    onChange: (val: number) => void, 
+    min: number, 
+    step: string, 
+    className?: string,
+    disabled?: boolean
+}) => {
+    const [localValue, setLocalValue] = useState(value.toString());
+
+    // Sync local value when prop changes externally (e.g. +/- buttons)
+    useEffect(() => {
+        // Only update local value if the numeric value actually changed
+        // This prevents overwriting "1." with "1" while typing
+        const parsedLocal = parseFloat(localValue);
+        if (parsedLocal !== value) {
+            setLocalValue(value.toString());
+        }
+    }, [value]);
+
+    const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
+        const newValStr = e.target.value;
+        setLocalValue(newValStr);
+        
+        if (newValStr === '') {
+            onChange(0);
+            return;
+        }
+
+        const parsed = parseFloat(newValStr);
+        if (!isNaN(parsed)) {
+            onChange(parsed);
+        }
+    };
+
+    const handleBlur = () => {
+        // On blur, force format to standard number string to clean up (e.g. "1." -> "1")
+        setLocalValue(value.toString());
+    };
+
+    return (
+        <input 
+            type="number"
+            min={min}
+            step={step}
+            value={localValue}
+            onChange={handleChange}
+            onBlur={handleBlur}
+            className={className}
+            disabled={disabled}
+        />
+    );
+};
 
 const getPriceForPackage = (product: Product, packageName: string): number => {
   const selectedPackage = product.packages.find(p => p.name === packageName);
@@ -47,13 +110,34 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
 
     const stockLevel = fullProduct.stockLevels.find(s => s.warehouseId === item.warehouseId)?.quantity || 0;
 
-    if (totalInCart > stockLevel) {
+    // Allow small float tolerance
+    if (totalInCart > stockLevel + 0.0001) {
         acc[item.id] = `Stock insuficiente: ${totalInCart.toFixed(2)} / ${stockLevel} ${fullProduct.baseUnit}`;
     }
     return acc;
   }, {} as Record<string, string>);
 
+  // Validate items against Minimum Purchase Quantity
+  const minQtyValidationErrors = items.reduce((acc, item) => {
+    const fullProduct = mockProducts.find(p => p.id === item.productId);
+    if (!fullProduct?.minPurchaseQuantity) return acc;
+
+    const minBase = fullProduct.minPurchaseQuantity;
+    const currentBase = item.baseUnitQuantity; // quantity * factor
+
+    // Tolerance for float comparison
+    if (currentBase < minBase - 0.001) {
+        const pkg = fullProduct.packages.find(p => p.name === item.selectedPackage);
+        const minPackages = minBase / (pkg?.factor || 1);
+        const displayMin = minPackages % 1 === 0 ? minPackages : minPackages.toFixed(2);
+        
+        acc[item.id] = `Qtd mínima: ${minBase} ${fullProduct.baseUnit} (~${displayMin} ${item.selectedPackage})`;
+    }
+    return acc;
+  }, {} as Record<string, string>);
+
   const hasStockErrors = Object.keys(stockValidationErrors).length > 0;
+  const hasMinQtyErrors = Object.keys(minQtyValidationErrors).length > 0;
 
   useEffect(() => {
     if (initialProduct) {
@@ -85,7 +169,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
 
       const totalRequired = inCartQuantity + requestedTotalBaseQty;
 
-      if (totalRequired > availableStock) {
+      if (totalRequired > availableStock + 0.0001) { // Float tolerance
           const warehouse = mockWarehouses.find(w => w.id === warehouseId);
           return {
               allowed: false,
@@ -109,37 +193,48 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
 
     setValidationError(null);
 
+    // Calculate Quantity to Add based on Minimum Purchase
+    const minBase = fullProduct.minPurchaseQuantity || 1;
+    // For initial add, ensure we meet minimum.
+    let quantityToAdd = 1;
+    if (selectedPackage.factor * quantityToAdd < minBase) {
+        quantityToAdd = Math.ceil(minBase / selectedPackage.factor);
+    }
+    
+    const quantityToAddBase = quantityToAdd * selectedPackage.factor;
+
     // 1. Check if the item already exists in the cart (Same Product + Same Package)
-    // We look for any instance, regardless of warehouse initially
     const existingItem = items.find(i => i.productId === fullProduct.id && i.selectedPackage === selectedPackageName);
 
     if (existingItem && fullProduct.trackStock) {
-        // 2. Check if we can MERGE (add +1 to existing warehouse)
-        const canMerge = checkStockAvailability(fullProduct.id, existingItem.warehouseId, selectedPackage.factor, existingItem.id);
+        // 2. Check if we can MERGE (add +quantityToAdd to existing warehouse)
+        // Check total requirement (existing + new)
+        const canMerge = checkStockAvailability(fullProduct.id, existingItem.warehouseId, quantityToAddBase);
         
         // 3. Check if we can SEPARATE (add new line from a DIFFERENT warehouse)
         const alternativeStock = fullProduct.stockLevels.find(sl => 
             sl.warehouseId !== existingItem.warehouseId && 
-            checkStockAvailability(fullProduct.id, sl.warehouseId, selectedPackage.factor).allowed
+            checkStockAvailability(fullProduct.id, sl.warehouseId, quantityToAddBase).allowed
         );
 
-        // 4. If BOTH are possible, ask the user
+        // 4. If BOTH are possible (or alternative exists), ask the user
         if (canMerge.allowed && alternativeStock) {
             setMergeConflict({
                 product: fullProduct,
                 selectedPackage: selectedPackage,
                 existingItem: existingItem,
-                alternativeWarehouseId: alternativeStock.warehouseId
+                alternativeWarehouseId: alternativeStock.warehouseId,
+                quantityToAdd: quantityToAdd
             });
             return;
         }
     }
 
     // --- STANDARD ADD LOGIC (Executed if no conflict dialog is needed) ---
-    executeAddItem(fullProduct, selectedPackage);
+    executeAddItem(fullProduct, selectedPackage, undefined, quantityToAdd);
   };
 
-  const executeAddItem = (fullProduct: Product, selectedPackage: ProductPackage, forcedWarehouseId?: string) => {
+  const executeAddItem = (fullProduct: Product, selectedPackage: ProductPackage, forcedWarehouseId?: string, quantity: number = 1) => {
     let warehouseIdToUse = forcedWarehouseId;
 
     if (!warehouseIdToUse) {
@@ -149,7 +244,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
             const existingItem = items.find(i => i.productId === fullProduct.id && i.selectedPackage === selectedPackage.name);
             
             if (existingItem) {
-                 const check = checkStockAvailability(fullProduct.id, existingItem.warehouseId, selectedPackage.factor);
+                 const check = checkStockAvailability(fullProduct.id, existingItem.warehouseId, quantity * selectedPackage.factor);
                  if (check.allowed) {
                      warehouseIdToUse = existingItem.warehouseId;
                  }
@@ -158,7 +253,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
             // 2. If not found or full, find any warehouse with enough stock for this addition
             if (!warehouseIdToUse) {
                 const validStock = fullProduct.stockLevels.find(sl => {
-                    const check = checkStockAvailability(fullProduct.id, sl.warehouseId, selectedPackage.factor);
+                    const check = checkStockAvailability(fullProduct.id, sl.warehouseId, quantity * selectedPackage.factor);
                     return check.allowed;
                 });
                 
@@ -190,15 +285,18 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
 
     if (existingItemIndex >= 0) {
       const currentItem = items[existingItemIndex];
-      const newQuantity = currentItem.quantity + 1;
+      const newQuantity = currentItem.quantity + quantity;
       
       if (newQuantity > CART_LIMITS.MAX_QTY_PER_LINE) {
           setValidationError({ message: `Limite de ${CART_LIMITS.MAX_QTY_PER_LINE} unidades por linha.` });
           return;
       }
 
-      // Validate Stock for the update
-      const stockCheck = checkStockAvailability(fullProduct.id, warehouseIdToUse, selectedPackage.factor, currentItem.id);
+      // Validate Stock for the update (total quantity)
+      const newTotalBase = newQuantity * selectedPackage.factor;
+      // Note: we pass currentItem.id to exclude its OLD quantity from calculation, effectively checking the NEW total
+      const stockCheck = checkStockAvailability(fullProduct.id, warehouseIdToUse, newTotalBase, currentItem.id);
+      
       if (!stockCheck.allowed) {
           setValidationError({ message: stockCheck.message || "Stock insuficiente.", productId: fullProduct.id });
           return;
@@ -208,7 +306,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
       newItems[existingItemIndex] = {
           ...currentItem,
           quantity: newQuantity,
-          baseUnitQuantity: newQuantity * selectedPackage.factor
+          baseUnitQuantity: newTotalBase
       };
       setItems(newItems);
 
@@ -219,7 +317,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
       }
 
       // Final check for new item
-      const stockCheck = checkStockAvailability(fullProduct.id, warehouseIdToUse, selectedPackage.factor);
+      const stockCheck = checkStockAvailability(fullProduct.id, warehouseIdToUse, quantity * selectedPackage.factor);
       if (!stockCheck.allowed) {
            setValidationError({ message: stockCheck.message || "Stock insuficiente.", productId: fullProduct.id });
            return;
@@ -229,10 +327,10 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
         id: `item_${Date.now()}_${Math.random().toString(36).substr(2, 9)}`,
         productId: fullProduct.id,
         productName: fullProduct.name,
-        quantity: 1,
+        quantity: quantity,
         unitPrice: getPriceForPackage(fullProduct, selectedPackage.name),
         selectedPackage: selectedPackage.name,
-        baseUnitQuantity: selectedPackage.factor,
+        baseUnitQuantity: quantity * selectedPackage.factor,
         warehouseId: warehouseIdToUse,
       };
       setItems([...items, newItem]);
@@ -241,24 +339,20 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
 
   const handleConfirmMerge = () => {
     if (!mergeConflict) return;
-    // Execute add item logic, forcing it to use the existing item's warehouse (Merge)
-    executeAddItem(mergeConflict.product, mergeConflict.selectedPackage, mergeConflict.existingItem.warehouseId);
+    executeAddItem(mergeConflict.product, mergeConflict.selectedPackage, mergeConflict.existingItem.warehouseId, mergeConflict.quantityToAdd);
     setMergeConflict(null);
   };
 
   const handleConfirmSeparate = () => {
     if (!mergeConflict) return;
-    // Execute add item logic, forcing it to use the alternative warehouse (Separate Line)
-    executeAddItem(mergeConflict.product, mergeConflict.selectedPackage, mergeConflict.alternativeWarehouseId);
+    executeAddItem(mergeConflict.product, mergeConflict.selectedPackage, mergeConflict.alternativeWarehouseId, mergeConflict.quantityToAdd);
     setMergeConflict(null);
   };
 
   const updateQuantity = (itemId: string, newQuantity: number) => {
-    if (newQuantity <= 0) {
-      removeItem(itemId);
-      return;
-    }
-    
+    // Allow 0 momentarily (e.g. while typing), checks min/stock later
+    if (isNaN(newQuantity) || newQuantity < 0) return; 
+
     const itemIndex = items.findIndex(i => i.id === itemId);
     if(itemIndex === -1) return;
     const item = items[itemIndex];
@@ -279,7 +373,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
 
     if (!stockCheck.allowed) {
         setValidationError({ message: stockCheck.message || "Stock insuficiente.", productId: fullProduct.id });
-        return;
+        return; // Reject update if stock insufficient
     }
 
     setValidationError(null);
@@ -459,7 +553,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
   };
 
   const handleFinalize = () => {
-    if (hasStockErrors) return;
+    if (hasStockErrors || hasMinQtyErrors) return;
     
     // In a real app, this would submit the order to the backend
     alert(`Venda finalizada com sucesso! Total: ${calculateTotal().toFixed(2)} Kz`);
@@ -504,7 +598,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
                         className="flex items-center justify-center w-full px-4 py-3 bg-blue-600 text-white rounded-lg font-semibold hover:bg-blue-700 transition-colors shadow-sm"
                     >
                         <ArrowsRightLeftIcon className="h-5 w-5 mr-2" />
-                        Fundir (Total: {mergeConflict.existingItem.quantity + 1})
+                        Fundir (Total: {mergeConflict.existingItem.quantity + mergeConflict.quantityToAdd})
                     </button>
                     <button 
                         onClick={handleConfirmSeparate}
@@ -534,12 +628,12 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
           </div>
       )}
 
-      {hasStockErrors && !validationError && (
+      {(hasStockErrors || hasMinQtyErrors) && !validationError && (
            <div className="p-3 mb-4 text-sm text-red-800 rounded-lg bg-red-50 flex items-start animate-pulse border border-red-200" role="alert">
              <ExclamationTriangleIcon className="h-5 w-5 mr-2 text-red-600 flex-shrink-0"/>
              <div>
-                 <span className="font-semibold block mb-1">Erro de Stock</span>
-                 Alguns itens no carrinho excedem o stock disponível.
+                 <span className="font-semibold block mb-1">Erro de Validação</span>
+                 Verifique os itens com erros no carrinho (stock insuficiente ou quantidade mínima não atingida).
              </div>
            </div>
       )}
@@ -571,14 +665,26 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
             {filteredItems.map((item, index) => {
                 const isRemoving = item.id === removingItemId;
                 const stockError = stockValidationErrors[item.id];
-                const hasError = validationError?.productId === item.productId || !!stockError;
+                const minQtyError = minQtyValidationErrors[item.id];
+                
+                const hasError = validationError?.productId === item.productId || !!stockError || !!minQtyError;
                 const isLastItem = index === filteredItems.length - 1 && !isRemoving;
                 const fullProduct = mockProducts.find(p => p.id === item.productId);
                 
                 const itemClasses = ['py-4 transition-all duration-300', isLastItem && items.length > 0 ? 'animate-fadeInDown' : '', isRemoving ? 'animate-fadeOutUp' : '', hasError ? 'cart-item-error -mx-4 px-4 rounded-md' : ''].filter(Boolean).join(' ');
 
                 const warehouseOptions = mockWarehouses.filter(w => w.id === item.warehouseId || (fullProduct?.stockLevels.some(s => s.warehouseId === w.id && s.quantity > 0)));
-                const currentWarehouseName = warehouseOptions.find(w => w.id === item.warehouseId)?.name;
+
+                // Calculate dynamic min attribute for HTML validation
+                const pkg = fullProduct?.packages.find(p => p.name === item.selectedPackage);
+                const minBase = fullProduct?.minPurchaseQuantity || 1;
+                
+                const isMeasurable = ['KG', 'L', 'M', 'M2', 'M3'].includes(fullProduct?.baseUnit?.toUpperCase() || '');
+                // Allow decimals only if it's the base unit package (factor 1) AND measurable
+                const allowDecimals = isMeasurable && pkg?.factor === 1;
+
+                let minPkgQty = Math.ceil(minBase / (pkg?.factor || 1));
+                if (allowDecimals && minBase < 1) minPkgQty = minBase;
 
                 return (
                   <li key={item.id} className={itemClasses}>
@@ -601,12 +707,26 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
                                    {stockError}
                                </div>
                           )}
+                          {minQtyError && (
+                               <div className="mt-1 text-xs text-orange-600 font-medium flex items-center">
+                                   <ExclamationCircleIcon className="h-3 w-3 mr-1" />
+                                   {minQtyError}
+                               </div>
+                          )}
                       </div>
-                      <div className="flex items-center space-x-3 ml-4">
-                          <button onClick={() => updateQuantity(item.id, item.quantity - 1)} className="p-1 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors"><MinusIcon className="h-4 w-4"/></button>
-                          <span className="font-medium w-8 text-center">{item.quantity}</span>
-                          <button onClick={() => updateQuantity(item.id, item.quantity + 1)} className="p-1 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors"><PlusIcon className="h-4 w-4"/></button>
-                          <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-700 transition-colors"><TrashIcon className="h-5 w-5"/></button>
+                      <div className="flex items-center space-x-2 ml-4">
+                          <button onClick={() => updateQuantity(item.id, Math.max(minPkgQty, item.quantity - (allowDecimals ? 0.5 : 1)))} className="p-1 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors flex-shrink-0"><MinusIcon className="h-4 w-4"/></button>
+                          
+                          <QuantityInput
+                            min={minPkgQty}
+                            step={allowDecimals ? "0.01" : "1"}
+                            value={item.quantity}
+                            onChange={(val) => updateQuantity(item.id, val)}
+                            className={`w-16 text-center border rounded-md text-sm py-1 focus:ring-primary focus:border-primary ${minQtyError ? 'border-orange-300 text-orange-700 bg-orange-50' : 'border-gray-300'}`}
+                          />
+                          
+                          <button onClick={() => updateQuantity(item.id, item.quantity + (allowDecimals ? 0.5 : 1))} className="p-1 rounded-full bg-gray-200 hover:bg-gray-300 transition-colors flex-shrink-0"><PlusIcon className="h-4 w-4"/></button>
+                          <button onClick={() => removeItem(item.id)} className="text-red-500 hover:text-red-700 transition-colors ml-1"><TrashIcon className="h-5 w-5"/></button>
                       </div>
                     </div>
                     {fullProduct?.trackStock && (
@@ -642,7 +762,7 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
         </div>
         {totalValueExceeded && <p className="text-red-600 text-sm mt-1">Atenção: O valor total excede o limite de {CART_LIMITS.MAX_TOTAL_VALUE.toFixed(2)} Kz.</p>}
         <button 
-          disabled={items.length === 0 || totalValueExceeded || !!validationError || !!mergeConflict || hasStockErrors}
+          disabled={items.length === 0 || totalValueExceeded || !!validationError || !!mergeConflict || hasStockErrors || hasMinQtyErrors}
           onClick={handleFinalize}
           className="w-full mt-4 bg-primary text-white font-bold py-3 px-4 rounded-lg hover:bg-blue-700 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed shadow-md">
           Finalizar Venda

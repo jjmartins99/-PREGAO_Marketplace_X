@@ -51,6 +51,11 @@ const ProductCard = ({ product }: ProductCardProps) => {
       return 0;
   };
 
+  // Função helper para gerar a URL da imagem do código de barras
+  const generateBarcodeImage = (text: string) => {
+      return `https://bwipjs-api.metafloor.com/?bcid=code128&text=${text}&scale=3&includetext&backgroundcolor=ffffff&padding=10`;
+  };
+
   // Inicialização ao abrir o modal
   useEffect(() => {
     if (isOpen) {
@@ -386,7 +391,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
                              <h4 className="font-semibold text-sm text-gray-900 uppercase tracking-wider mb-2">Código de Barras</h4>
                              <div className="flex flex-col items-center justify-center p-4 border border-gray-200 rounded-lg bg-white shadow-sm">
                                  <img
-                                     src={`https://bwipjs-api.metafloor.com/?bcid=code128&text=${selectedPackage.ean}&scale=3&includetext&backgroundcolor=ffffff&padding=10`}
+                                     src={generateBarcodeImage(selectedPackage.ean)}
                                      alt={`Barcode ${selectedPackage.ean}`}
                                      className="max-w-full h-20 object-contain"
                                  />
@@ -475,10 +480,10 @@ const ProductCard = ({ product }: ProductCardProps) => {
                                     <table className="min-w-full divide-y divide-gray-200">
                                         <thead className="bg-gray-50">
                                             <tr>
-                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Lote</th>
-                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Validade</th>
-                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase">Armazém</th>
-                                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase">Qtd</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Lote</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Validade</th>
+                                                <th className="px-3 py-2 text-left text-xs font-medium text-gray-500 uppercase tracking-wider">Armazém</th>
+                                                <th className="px-3 py-2 text-right text-xs font-medium text-gray-500 uppercase tracking-wider">Qtd</th>
                                             </tr>
                                         </thead>
                                         <tbody className="bg-white divide-y divide-gray-200 text-xs">

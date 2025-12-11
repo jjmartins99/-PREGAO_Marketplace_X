@@ -264,7 +264,7 @@ const ProductCard = ({ product }: ProductCardProps) => {
                 className="w-full flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
             >
                 <ShoppingCartIcon className="h-4 w-4 mr-2" />
-                Comprar Agora
+                Adicionar ao Carrinho
             </button>
             
             <button
@@ -416,20 +416,28 @@ const ProductCard = ({ product }: ProductCardProps) => {
                         </div>
                         
                         {product.trackStock && (
-                            <div>
-                                <h4 className="font-semibold text-sm text-gray-900 uppercase tracking-wider mb-2">Disponibilidade de Stock</h4>
-                                <div className="space-y-2">
+                            <div className="mt-6">
+                                <div className="flex justify-between items-end mb-3">
+                                    <h4 className="font-semibold text-sm text-gray-900 uppercase tracking-wider">Disponibilidade de Stock</h4>
+                                    {product.stockLevels.length > 0 && (
+                                        <span className="text-xs font-medium text-gray-500 bg-gray-50 px-2 py-1 rounded border border-gray-100">
+                                            Global: <span className="text-gray-900 font-bold ml-1">{product.stockLevels.reduce((acc, s) => acc + s.quantity, 0)} {product.baseUnit}</span>
+                                        </span>
+                                    )}
+                                </div>
+                                <div className="space-y-3">
                                     {product.stockLevels.length > 0 ? (
                                         product.stockLevels.map((stock) => {
                                             const warehouse = mockWarehouses.find(w => w.id === stock.warehouseId);
                                             const isSelected = selectedWarehouseId === stock.warehouseId;
                                             const qtyInPackage = Math.floor(stock.quantity / selectedPackage.factor);
+                                            
                                             // Ajuste visual para unidades fracionadas
                                             let stockDisplay;
                                             if (allowDecimals) {
-                                                stockDisplay = `${stock.quantity.toFixed(2)} ${product.baseUnit}`;
+                                                stockDisplay = stock.quantity.toFixed(2);
                                             } else {
-                                                stockDisplay = `${stock.quantity} ${product.baseUnit}`;
+                                                stockDisplay = stock.quantity.toString();
                                             }
                                             
                                             return (
@@ -438,21 +446,26 @@ const ProductCard = ({ product }: ProductCardProps) => {
                                                     onClick={() => {
                                                         setSelectedWarehouseId(stock.warehouseId);
                                                     }}
-                                                    className={`flex justify-between items-center p-3 rounded-lg border cursor-pointer transition-colors ${
+                                                    className={`group flex justify-between items-center p-3 rounded-lg border cursor-pointer transition-all duration-200 ${
                                                         isSelected 
-                                                            ? 'border-primary bg-blue-50 ring-1 ring-primary' 
-                                                            : 'border-gray-200 bg-gray-50 hover:bg-gray-100'
+                                                            ? 'border-primary bg-blue-50 ring-1 ring-primary shadow-sm' 
+                                                            : 'border-gray-200 bg-white hover:bg-gray-50 hover:border-gray-300'
                                                     }`}
                                                 >
                                                     <div className="flex items-center">
-                                                        <BuildingOfficeIcon className={`h-5 w-5 mr-2 ${isSelected ? 'text-primary' : 'text-gray-400'}`} />
-                                                        <span className={`text-sm font-medium ${isSelected ? 'text-gray-900' : 'text-gray-600'}`}>
-                                                            {warehouse?.name || stock.warehouseId}
-                                                        </span>
+                                                        <div className={`p-2 rounded-full mr-3 transition-colors ${isSelected ? 'bg-white text-primary' : 'bg-gray-100 text-gray-500 group-hover:bg-white'}`}>
+                                                            <BuildingOfficeIcon className="h-5 w-5" />
+                                                        </div>
+                                                        <div>
+                                                            <span className={`text-sm font-medium block ${isSelected ? 'text-gray-900' : 'text-gray-700'}`}>
+                                                                {warehouse?.name || stock.warehouseId}
+                                                            </span>
+                                                            <span className="text-xs text-gray-500">{warehouse?.type || 'Armazém'}</span>
+                                                        </div>
                                                     </div>
                                                     <div className="text-right">
                                                         <span className={`font-bold text-sm block ${stock.quantity === 0 ? 'text-red-600' : 'text-gray-900'}`}>
-                                                            {stockDisplay}
+                                                            {stockDisplay} <span className="text-xs font-normal text-gray-500">{product.baseUnit}</span>
                                                         </span>
                                                          {selectedPackage.factor > 1 && stock.quantity > 0 && (
                                                             <span className="text-xs text-gray-500 block">
@@ -464,10 +477,10 @@ const ProductCard = ({ product }: ProductCardProps) => {
                                             );
                                         })
                                     ) : (
-                                        <p className="text-red-500 font-medium flex items-center p-3 bg-red-50 rounded-lg border border-red-100">
-                                            <span className="w-2 h-2 bg-red-500 rounded-full mr-2"></span>
-                                            Indisponível
-                                        </p>
+                                        <div className="p-4 bg-red-50 rounded-lg border border-red-100 flex items-center justify-center text-red-600">
+                                            <ExclamationCircleIcon className="w-5 h-5 mr-2" />
+                                            <span className="font-medium text-sm">Stock indisponível</span>
+                                        </div>
                                     )}
                                 </div>
                             </div>

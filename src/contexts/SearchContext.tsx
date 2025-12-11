@@ -1,3 +1,4 @@
+
 import React, { createContext, useState, ReactNode, useMemo } from 'react';
 
 interface SearchContextType {
@@ -7,7 +8,7 @@ interface SearchContextType {
 
 export const SearchContext = createContext<SearchContextType | undefined>(undefined);
 
-export const SearchProvider = ({ children }: { children: ReactNode }) => {
+export const SearchProvider = ({ children }: { children?: ReactNode }) => {
   const [searchTerm, setSearchTerm] = useState('');
 
   const value = useMemo(() => ({

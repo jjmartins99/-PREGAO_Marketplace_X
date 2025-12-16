@@ -113,6 +113,13 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
     // Allow small float tolerance
     if (totalInCart > stockLevel + 0.0001) {
         acc[item.id] = `Stock insuficiente: ${totalInCart.toFixed(2)} / ${stockLevel} ${fullProduct.baseUnit}`;
+    } else {
+        // Check for orphan stock: remaining stock cannot be less than minPurchaseQuantity unless it is 0
+        const remaining = stockLevel - totalInCart;
+        const minPurchase = fullProduct.minPurchaseQuantity || 0;
+        if (minPurchase > 0 && remaining > 0.0001 && remaining < minPurchase - 0.0001) {
+            acc[item.id] = `Sobra inviável: ${remaining.toFixed(2)} < Mín (${minPurchase})`;
+        }
     }
     return acc;
   }, {} as Record<string, string>);
@@ -175,6 +182,18 @@ const POSCart: React.FC<POSCartProps> = ({ initialProduct }) => {
               allowed: false,
               available: availableStock,
               message: `Stock insuficiente no ${warehouse?.name || warehouseId}. Disponível: ${availableStock} ${product.baseUnit}. Pedido total: ${totalRequired.toFixed(2)}.`
+          };
+      }
+
+      // Check for orphan stock (remaining stock < minPurchaseQuantity)
+      const remainingStock = availableStock - totalRequired;
+      const minPurchase = product.minPurchaseQuantity || 0;
+      
+      if (minPurchase > 0 && remainingStock > 0.0001 && remainingStock < minPurchase - 0.0001) {
+          return {
+              allowed: false,
+              available: availableStock,
+              message: `Operação bloqueada: O stock restante (${remainingStock.toFixed(2)} ${product.baseUnit}) seria inferior ao mínimo de compra (${minPurchase} ${product.baseUnit}). Venda a totalidade ou ajuste a quantidade.`
           };
       }
 

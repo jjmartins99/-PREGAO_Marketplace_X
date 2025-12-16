@@ -322,11 +322,14 @@ const ProductCard = ({ product }: ProductCardProps) => {
                         <div className="mt-4 p-4 bg-gray-50 rounded-lg border border-gray-100">
                             <div className="flex flex-col mb-3">
                                 <p className="text-sm text-gray-500 mb-1">Preço por {selectedPackage.name}</p>
-                                <div className="flex flex-wrap items-baseline gap-x-2">
+                                <div className="flex flex-col">
                                     <p className="text-3xl font-bold text-primary">{displayPrice.toFixed(2)} Kz</p>
-                                    <span className="inline-flex items-center rounded-md bg-blue-50 px-2 py-1 text-xs font-medium text-blue-700 ring-1 ring-inset ring-blue-700/10">
-                                        {unitPrice.toFixed(2)} Kz / {product.baseUnit}
-                                    </span>
+                                    <div className="mt-2 flex items-center text-sm text-gray-600 bg-white border border-gray-200 rounded px-2 py-1 w-fit">
+                                        <ScaleIcon className="h-4 w-4 mr-2 text-gray-400" />
+                                        <span>
+                                            {unitPrice.toFixed(2)} Kz / <span className="font-medium text-gray-800">{product.baseUnit}</span>
+                                        </span>
+                                    </div>
                                 </div>
                             </div>
                              <span className={`inline-block px-3 py-1 text-sm font-medium rounded-full mb-4 ${product.kind === 'GOOD' ? 'bg-green-100 text-green-800' : 'bg-blue-100 text-blue-800'}`}>

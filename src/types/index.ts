@@ -60,7 +60,8 @@ export interface Product {
   packages: ProductPackage[];
   stockLevels: StockLevel[];
   batches?: ProductBatch[];
-  minPurchaseQuantity?: number;
+  minPurchaseQuantity?: number; // Qtd mínima para venda
+  minStockLevel?: number; // Stock de Segurança (Alerta)
 }
 
 export interface CartItem {

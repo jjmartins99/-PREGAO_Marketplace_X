@@ -24,6 +24,7 @@ export const mockProducts: Product[] = [
     baseUnit: 'UN',
     stockPolicy: StockPolicy.FIFO,
     minPurchaseQuantity: 12,
+    minStockLevel: 150, // ALERTA: Total é 120 (100+20), logo deve disparar notificação
     packages: [
       { name: 'UN', factor: 1, ean: '1111111111111', price: 850.00 },
       { name: 'CX', factor: 6, ean: '1111111111112', price: 5000.00 },
@@ -48,6 +49,7 @@ export const mockProducts: Product[] = [
     trackStock: true,
     baseUnit: 'KG',
     stockPolicy: StockPolicy.LIFO,
+    minStockLevel: 20, // OK: Total é 50
     packages: [
       { name: 'SACO', factor: 5, ean: '2222222222222' },
     ],
@@ -82,6 +84,7 @@ export const mockProducts: Product[] = [
     trackStock: true,
     baseUnit: 'UN',
     stockPolicy: StockPolicy.FIFO,
+    minStockLevel: 500, // ALERTA: Total é 300 (240+60)
     packages: [
       { name: 'UN', factor: 1, ean: '4444444444444' },
       { name: 'FARDO', factor: 6, ean: '4444444444445', price: 1400.00 },

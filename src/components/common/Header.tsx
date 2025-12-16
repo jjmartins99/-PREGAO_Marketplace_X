@@ -1,5 +1,5 @@
 
-import React, { useState, useRef } from 'react';
+import React, { useState, useRef, useEffect } from 'react';
 import { Link, NavLink, useLocation } from 'react-router-dom';
 import { useAuth } from '@/hooks/useAuth';
 import { useSearch } from '@/hooks/useSearch';
@@ -12,9 +12,22 @@ const Header = () => {
   const fileInputRef = useRef<HTMLInputElement>(null);
   const location = useLocation();
 
+  // Cleanup object URL to avoid memory leaks
+  useEffect(() => {
+    return () => {
+      if (profileImage) {
+        URL.revokeObjectURL(profileImage);
+      }
+    };
+  }, [profileImage]);
+
   const handleImageUpload = (event: React.ChangeEvent<HTMLInputElement>) => {
     const file = event.target.files?.[0];
     if (file) {
+      // Revoke previous URL if exists
+      if (profileImage) {
+        URL.revokeObjectURL(profileImage);
+      }
       const imageUrl = URL.createObjectURL(file);
       setProfileImage(imageUrl);
     }
@@ -85,14 +98,14 @@ const Header = () => {
 
             <div className="h-6 w-px bg-gray-300 hidden lg:block"></div>
 
-            <button className="p-2 rounded-full hover:bg-gray-100 relative">
+            <button className="p-2 rounded-full hover:bg-gray-100 relative" aria-label="Cart">
                 <ShoppingCartIcon className="h-6 w-6 text-gray-600"/>
             </button>
 
           {isAuthenticated ? (
             <div className="flex items-center space-x-2">
                 {/* Avatar Display */}
-                <div className="h-8 w-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300 flex-shrink-0">
+                <div className="h-8 w-8 rounded-full bg-gray-200 overflow-hidden border border-gray-300 flex-shrink-0 relative group">
                     {profileImage ? (
                         <img src={profileImage} alt="Profile" className="h-full w-full object-cover" />
                     ) : (
@@ -105,8 +118,9 @@ const Header = () => {
                 {/* Upload Button */}
                 <button 
                     onClick={triggerFileInput}
-                    className="p-1 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-full transition-colors"
+                    className="p-1 text-gray-400 hover:text-primary hover:bg-gray-100 rounded-full transition-colors focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary"
                     title="Alterar foto de perfil"
+                    aria-label="Upload profile picture"
                 >
                     <CameraIcon className="h-5 w-5" />
                 </button>
@@ -117,12 +131,12 @@ const Header = () => {
                     ref={fileInputRef} 
                     onChange={handleImageUpload} 
                     className="hidden" 
-                    accept="image/*"
+                    accept="image/png, image/jpeg, image/jpg, image/webp"
                 />
 
                 <div className="h-6 w-px bg-gray-300 mx-1 hidden sm:block"></div>
 
-                <button onClick={logout} className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-red-600 transition-colors" title="Terminar Sessão">
+                <button onClick={logout} className="p-2 rounded-full hover:bg-gray-100 text-gray-600 hover:text-red-600 transition-colors" title="Terminar Sessão" aria-label="Logout">
                     <ArrowLeftOnRectangleIcon className="h-6 w-6"/>
                 </button>
             </div>

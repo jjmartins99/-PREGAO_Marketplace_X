@@ -1,8 +1,10 @@
 
+/** @jsx React.createElement */
+/** @jsxFrag React.Fragment */
 import React, { useState, useEffect, Fragment } from 'react';
 import { Dialog, Transition } from '@headlessui/react';
 import { Product, ProductPackage } from '@/types';
-import { ShoppingCartIcon, EyeIcon, XMarkIcon, MinusIcon, PlusIcon, ScaleIcon, ExclamationCircleIcon, BuildingOfficeIcon, MagnifyingGlassIcon } from '@heroicons/react/24/outline';
+import { ShoppingCartIcon, EyeIcon, XMarkIcon, MinusIcon, PlusIcon, ScaleIcon, ExclamationCircleIcon, BuildingOfficeIcon, MagnifyingGlassIcon, BoltIcon } from '@heroicons/react/24/outline';
 import { CheckCircleIcon } from '@heroicons/react/24/solid';
 import { mockWarehouses } from '@/mocks/data';
 
@@ -257,11 +259,21 @@ const ProductCard = ({ product }: ProductCardProps) => {
             <div className="flex justify-between items-center mb-1">
                <span className="text-xl font-bold text-gray-900">{product.price.toFixed(2)} Kz</span>
             </div>
+
+            {/* BOTÃO COMPRAR AGORA - Prioritário e com destaque */}
+            <button
+                onClick={handleQuickBuy}
+                disabled={!hasGlobalStock}
+                className="w-full flex justify-center items-center px-4 py-2.5 border border-transparent shadow-sm text-sm font-bold rounded-md text-white bg-primary hover:bg-blue-800 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-primary transition-all disabled:bg-gray-400 disabled:cursor-not-allowed mb-0.5"
+            >
+                <BoltIcon className="h-4 w-4 mr-2" />
+                Comprar Agora
+            </button>
             
             <button 
                 onClick={handleQuickBuy}
                 disabled={!hasGlobalStock}
-                className="w-full flex justify-center items-center px-4 py-2 border border-transparent shadow-sm text-sm font-medium rounded-md text-white bg-green-600 hover:bg-green-700 focus:outline-none focus:ring-2 focus:ring-offset-2 focus:ring-green-500 transition-colors disabled:bg-gray-400 disabled:cursor-not-allowed"
+                className="w-full flex justify-center items-center px-4 py-2 border border-green-600 text-green-700 hover:bg-green-50 text-sm font-medium rounded-md focus:outline-none transition-colors disabled:border-gray-300 disabled:text-gray-400 disabled:cursor-not-allowed"
             >
                 <ShoppingCartIcon className="h-4 w-4 mr-2" />
                 Adicionar ao Carrinho
